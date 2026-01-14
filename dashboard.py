@@ -15,7 +15,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 from src.data_engine import DataEngine
 from src.strategy import FundingStrategy
 from src.optimization_engine import OptimizationEngine
-from src.asset_ranker import AssetRanker
 
 # New utility modules
 from src.utils.data_prep import (
@@ -31,7 +30,7 @@ from src.calculators.stats_calculator import StatsCalculator
 from src.visualizations.charts import ChartBuilder
 
 # Import config
-from config import StrategyDefaults, ExchangeLimits, DataLimits, RankerThresholds, ChartColors
+from config import StrategyDefaults, ExchangeLimits, DataLimits, ChartColors
 
 # === PAGE CONFIG ===
 st.set_page_config(
@@ -177,12 +176,11 @@ with st.container(border=True):
               help="% of time the net spread was negative.")
 
 # 2. DETAILED ANALYSIS TABS
-tab_backtest, tab_stats, tab_risk, tab_optimizer, tab_ranker = st.tabs([
-    "📈 Backtest & Performance", 
-    "📊 Statistical Analysis", 
+tab_backtest, tab_stats, tab_risk, tab_optimizer = st.tabs([
+    "📈 Backtest & Performance",
+    "📊 Statistical Analysis",
     "🛡️ Risk & Solvency",
-    "🤖 Optimizer",
-    "🏆 Asset Ranker"
+    "🤖 Optimizer"
 ])
 
 # --- TAB 1: BACKTEST & PERFORMANCE ---
@@ -399,74 +397,3 @@ with tab_optimizer:
             
             fig_opt = charts.create_optimization_heatmap(pivot_apr, pivot_safe)
             st.plotly_chart(fig_opt, use_container_width=True)
-
-# === TAB 5: RANKER ===
-with tab_ranker:
-    st.markdown("### 🏆 Asset Universe Ranker")
-
-    # Initialize session state for ranker results
-    if 'ranker_results' not in st.session_state:
-        st.session_state.ranker_results = None
-
-    # Debug: Check database status
-    try:
-        with engine.conn:
-            ticker_count = len([r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")])
-        st.caption(f"📊 Database contains {ticker_count} tickers")
-    except Exception as e:
-        st.error(f"Database error: {e}")
-
-    if st.button("🏁 Run Universe Analysis", key="run_ranker_btn"):
-        with st.spinner("Running analysis..."):
-            try:
-                # Get tickers from database
-                with engine.conn:
-                    tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
-
-                if not tickers:
-                    st.warning("No tickers found in database. Load data first using main.py")
-                    st.session_state.ranker_results = None
-                else:
-                    ranker = AssetRanker(capital, benchmark)
-                    df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
-
-                    if df_ranked.empty:
-                        st.warning("No valid results. Check date range and data availability.")
-                        st.session_state.ranker_results = None
-                    else:
-                        # Store results in session state
-                        st.session_state.ranker_results = df_ranked
-                        st.success(f"✅ Successfully ranked {len(df_ranked)} assets!")
-                        st.rerun()  # Force rerun to display results
-            except Exception as e:
-                st.error(f"❌ Error running ranker: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
-                st.session_state.ranker_results = None
-
-    # Display results if they exist
-    if st.session_state.ranker_results is not None:
-        df_ranked = st.session_state.ranker_results
-
-        # Add status
-        def get_status(apr):
-            if apr >= RankerThresholds.HIGH_YIELD: return "🟢 High Yield"
-            if apr >= RankerThresholds.MODERATE_YIELD: return "🟡 Moderate"
-            return "🔴 Low Yield"
-
-        df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
-        st.dataframe(
-            df_ranked,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Avg Net APR": st.column_config.NumberColumn(
-                    "Avg Net APR",
-                    format="%.2f%%"
-                )
-            }
-        )
-
-        # Chart
-        chart = charts.create_ranking_chart(df_ranked)
-        st.altair_chart(chart, use_container_width=True)
