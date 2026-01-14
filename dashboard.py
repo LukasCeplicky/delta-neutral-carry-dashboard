@@ -138,8 +138,8 @@ if selected_asset:
     if metrics is None:
         st.error("🚨 **Strategy Failed Immediately!**")
         st.warning(
-            f"At {lev}x leverage, the account was liquidated in less than 24 hours.\n\n"
-            "**Action:** Reduce leverage or adjust your Capital Split."
+            f"At {safety_factor*100:.0f}% safety factor, the account was liquidated in less than 24 hours.\n\n"
+            "**Action:** Reduce safety factor or adjust your Capital Split."
         )
         st.stop()
 
