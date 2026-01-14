@@ -428,10 +428,11 @@ with tab_ranker:
                     st.session_state.ranker_results = None
                 else:
                     ranker = AssetRanker(capital, benchmark)
-                    df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
+                    # Use ALL available data for ranking (ignore date filter from sidebar)
+                    df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, None, None)
 
                     if df_ranked.empty:
-                        st.warning("No valid results. Check date range and data availability.")
+                        st.warning("No valid results. All assets were filtered out (check terminal for details).")
                         st.session_state.ranker_results = None
                     else:
                         # Store results in session state
