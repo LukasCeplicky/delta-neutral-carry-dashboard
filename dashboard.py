@@ -403,36 +403,43 @@ with tab_optimizer:
 # === TAB 5: RANKER ===
 with tab_ranker:
     st.markdown("### 🏆 Asset Universe Ranker")
-    
+
     if st.button("🏁 Run Universe Analysis"):
-        with engine.conn:
-            tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
-        
-        if tickers:
-            ranker = AssetRanker(capital, benchmark)
-            with st.spinner(f"Analyzing {len(tickers)} assets..."):
-                df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
-                
-                if not df_ranked.empty:
-                    # Add status
-                    def get_status(apr):
-                        if apr >= RankerThresholds.HIGH_YIELD: return "🟢 High Yield"
-                        if apr >= RankerThresholds.MODERATE_YIELD: return "🟡 Moderate"
-                        return "🔴 Low Yield"
-                    
-                    df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
-                    st.dataframe(
-                        df_ranked,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "Avg Net APR": st.column_config.NumberColumn(
-                                "Avg Net APR",
-                                format="%.2f%%"
-                            )
-                        }
-                    )
-                    
-                    # Chart
-                    chart = charts.create_ranking_chart(df_ranked)
-                    st.altair_chart(chart, use_container_width=True)
+        try:
+            with engine.conn:
+                tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
+
+            if not tickers:
+                st.warning("No tickers found in database. Load data first using main.py")
+            else:
+                ranker = AssetRanker(capital, benchmark)
+                with st.spinner(f"Analyzing {len(tickers)} assets..."):
+                    df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
+
+                    if df_ranked.empty:
+                        st.warning("No valid results. Check date range and data availability.")
+                    else:
+                        # Add status
+                        def get_status(apr):
+                            if apr >= RankerThresholds.HIGH_YIELD: return "🟢 High Yield"
+                            if apr >= RankerThresholds.MODERATE_YIELD: return "🟡 Moderate"
+                            return "🔴 Low Yield"
+
+                        df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
+                        st.dataframe(
+                            df_ranked,
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "Avg Net APR": st.column_config.NumberColumn(
+                                    "Avg Net APR",
+                                    format="%.2f%%"
+                                )
+                            }
+                        )
+
+                        # Chart
+                        chart = charts.create_ranking_chart(df_ranked)
+                        st.altair_chart(chart, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error running ranker: {str(e)}")
