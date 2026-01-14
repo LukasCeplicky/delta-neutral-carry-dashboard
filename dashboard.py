@@ -95,11 +95,14 @@ with st.sidebar:
     
     st.subheader("Strategy Parameters")
     capital = st.number_input("Total Capital ($)", 100_000, 50_000_000, 1_000_000, step=100_000)
-    lev = st.number_input("Leverage (x)", 0.1, 10.0, 1.0, 0.1)
-    
+
     st.subheader("Risk & Cost")
     hl_split = st.slider("HL Collateral Allocation (%)", 10, 90, 30, 5)
     hl_split_dec = hl_split / 100
+
+    safety_factor = st.slider("Safety Factor (%)", 50, 100, 80, 5) / 100
+    st.caption("💡 Uses X% of maximum safe leverage based on exchange limits")
+
     benchmark = st.number_input("Benchmark Rate (%)", 0.0, 15.0, 3.64, 0.01) / 100
     
     st.subheader("Timeframe")
@@ -127,7 +130,7 @@ if selected_asset:
     df = prepare_enhanced_dataframe(df)
     
     # Run strategy simulation
-    strat = FundingStrategy(capital, lev, hl_split_dec, benchmark)
+    strat = FundingStrategy(capital, hl_split_dec, benchmark, safety_factor)
     res = strat.run(df)
     metrics = strat.get_metrics(res)
     
@@ -208,27 +211,43 @@ with tab_backtest:
         st.plotly_chart(fig_spread, use_container_width=True)
     
     # Capital Allocation
-    st.markdown("### 🏦 Capital Ledger")
+    st.markdown("### 🏦 Capital Allocation & Leverage")
     alloc = SpreadCalculator.calculate_capital_allocation(res)
-    
+
+    # Top-level metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Portfolio", f"${alloc['total_equity']:,.0f}")
+    with col2:
+        position_notional = res['position_usd'].iloc[-1]
+        st.metric("Position Notional/Leg", f"${position_notional:,.0f}")
+    with col3:
+        system_lev = position_notional / alloc['total_equity'] if alloc['total_equity'] > 0 else 0
+        st.metric("System Leverage", f"{system_lev:.2f}x",
+                 help="Emergent leverage = Position / Total Equity")
+
+    st.markdown("---")
+
+    # Leg details
     col_hl, col_ib = st.columns(2)
     with col_hl:
         with st.container(border=True):
-            st.markdown("**⚡ Hyperliquid Leg** (Short)")
-            st.progress(alloc['hl_pct'] / 100)
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Allocation", f"{alloc['hl_pct']:.1f}%")
-            m2.metric("Equity", f"${alloc['hl_equity']:,.0f}")
-            m3.metric("Leg Lev", f"{alloc['hl_lev']:.1f}x")
-    
+            st.markdown("**⚡ Hyperliquid (Short Perp)**")
+            m1, m2 = st.columns(2)
+            m1.metric("Allocation", f"${alloc['hl_equity']:,.0f}",
+                     f"{alloc['hl_pct']:.1f}% of total")
+            m2.metric("Leg Leverage", f"{alloc['hl_lev']:.2f}x",
+                     f"Limit: 20x")
+
     with col_ib:
         with st.container(border=True):
-            st.markdown("**🏛️ Interactive Brokers Leg** (Long)")
-            st.progress(alloc['ibkr_pct'] / 100)
+            st.markdown("**🏛️ IBKR (Long Spot)**")
             n1, n2, n3 = st.columns(3)
-            n1.metric("Allocation", f"{alloc['ibkr_pct']:.1f}%")
-            n2.metric("Equity", f"${alloc['ibkr_equity']:,.0f}")
-            n3.metric("Leg Lev", f"{alloc['ibkr_lev']:.1f}x")
+            n1.metric("Allocation", f"${alloc['ibkr_equity']:,.0f}",
+                     f"{alloc['ibkr_pct']:.1f}% of total")
+            n2.metric("Loan", f"${res['ibkr_loan'].iloc[-1]:,.0f}")
+            n3.metric("Leg Leverage", f"{alloc['ibkr_lev']:.2f}x",
+                     f"Limit: 6.6x")
 
 # === TAB 2: STATISTICS ===
 with tab_stats:
@@ -369,14 +388,14 @@ with tab_optimizer:
             safe_runs = df_opt[df_opt['Safe'] == True]
             if not safe_runs.empty:
                 best = safe_runs.loc[safe_runs['APR'].idxmax()]
-                st.success(f"**Optimal:** {best['Leverage']:.1f}x @ {best['Split']:.0%} HL Split | "
+                st.success(f"**Optimal:** {best['Safety']:.0%} Safety @ {best['Split']:.0%} HL Split | "
                           f"CAGR: {best['APR']:.2f}%")
             else:
                 st.error("No safe configuration found")
-            
+
             # Heatmap
-            pivot_apr = df_opt.pivot(index="Split", columns="Leverage", values="APR")
-            pivot_safe = df_opt.pivot(index="Split", columns="Leverage", values="Safe")
+            pivot_apr = df_opt.pivot(index="Split", columns="Safety", values="APR")
+            pivot_safe = df_opt.pivot(index="Split", columns="Safety", values="Safe")
             
             fig_opt = charts.create_optimization_heatmap(pivot_apr, pivot_safe)
             st.plotly_chart(fig_opt, use_container_width=True)
