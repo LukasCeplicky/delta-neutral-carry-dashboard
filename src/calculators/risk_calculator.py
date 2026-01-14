@@ -162,24 +162,25 @@ class RiskCalculator:
         strategy_class
     ) -> pd.DataFrame:
         """
-        Simulate strategy across different leverage levels.
-        
+        Simulate strategy across different safety factor levels.
+
         Args:
             df: Enhanced price dataframe
             capital: Total capital
             hl_split: HL allocation percentage
             benchmark: Benchmark rate
             strategy_class: FundingStrategy class (not instance)
-            
+
         Returns:
             DataFrame with stress test results
         """
-        scenarios = np.arange(1.0, 4.5, 0.5)
+        # Test safety factors from 50% to 100% of max safe leverage
+        scenarios = np.arange(0.5, 1.05, 0.1)
         results = []
-        
-        for lev in scenarios:
+
+        for safety in scenarios:
             try:
-                strat = strategy_class(capital, lev, hl_split, benchmark)
+                strat = strategy_class(capital, hl_split, benchmark, safety)
                 res = strat.run(df)
                 metrics = strat.get_metrics(res)
                 
@@ -193,8 +194,12 @@ class RiskCalculator:
                     daily_rets = daily_equity.pct_change().dropna()
                     equity_vol = daily_rets.std() * np.sqrt(365)
                     
+                    # Calculate emergent system leverage
+                    system_lev = res['position_usd'].iloc[-1] / res['total_equity'].iloc[-1] if res['total_equity'].iloc[-1] > 0 else 0
+
                     results.append({
-                        "System Lev": f"{lev:.1f}x",
+                        "Safety": f"{safety:.0%}",
+                        "Sys Lev": f"{system_lev:.2f}x",
                         "HL Max": f"{leg_lev['hl'].max():.2f}x",
                         "IBKR Max": f"{leg_lev['ibkr'].max():.2f}x",
                         "CAGR": f"{metrics['CAGR'] * 100:.2f}%",
@@ -204,11 +209,12 @@ class RiskCalculator:
                     })
                 else:
                     raise ValueError("Metrics failed")
-                    
+
             except Exception:
                 # Mark failed scenarios
                 results.append({
-                    "System Lev": f"{lev:.1f}x",
+                    "Safety": f"{safety:.0%}",
+                    "Sys Lev": "LIQD",
                     "HL Max": "LIQUIDATED",
                     "IBKR Max": "LIQUIDATED",
                     "CAGR": "0.00%",
