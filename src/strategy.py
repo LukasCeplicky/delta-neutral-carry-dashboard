@@ -82,12 +82,19 @@ class FundingStrategy:
                     break
 
             # --- 3. EXECUTION ---
-            target_shares = target_notional / price
-            diff_shares = abs(target_shares - shares)
-            trade_cost = (diff_shares * price) * (self.cost_bps / 10000)
-            
-            total_equity -= trade_cost
-            shares = target_shares
+            # Check if rebalancing is needed (±10% tolerance)
+            current_notional = shares * price if shares > 0 else 0
+            drift_pct = abs(current_notional - target_notional) / target_notional if target_notional > 0 else 999
+
+            if drift_pct > 0.10:  # Only rebalance if drift exceeds 10%
+                target_shares = target_notional / price
+                diff_shares = abs(target_shares - shares)
+                trade_cost = (diff_shares * price) * (self.cost_bps / 10000)
+
+                total_equity -= trade_cost
+                shares = target_shares
+            # else: keep current position, no trading
+
             position_val = shares * price
             
             # --- 4. FINANCING COSTS ---
@@ -100,14 +107,20 @@ class FundingStrategy:
             # --- 6. NET PnL UPDATE ---
             net_pnl = fund_income - hourly_interest
             total_equity += net_pnl
-            
-            # PnL Attribution (Simplified: Funding -> HL, Interest -> IBKR)
-            hl_equity += fund_income
-            ibkr_equity -= hourly_interest
+
+            # Maintain fixed allocation split (unified portfolio approach)
+            hl_equity = total_equity * self.hl_split_pct
+            ibkr_equity = total_equity * (1 - self.hl_split_pct)
             
             # --- 7. MAINTENANCE CHECK (Post-PnL) ---
+            # HL maintenance margin check
             if position_val > 0 and (hl_equity / position_val) < self.hl_maint_margin:
                 results.append(self._fail_row(row, "HL Liquidation (Equity < 5%)"))
+                break
+
+            # IBKR maintenance margin check (10% requirement)
+            if position_val > 0 and (ibkr_equity / position_val) < 0.10:
+                results.append(self._fail_row(row, "IBKR Margin Call (Equity < 10%)"))
                 break
                 
             # --- 8. RECORD ---
