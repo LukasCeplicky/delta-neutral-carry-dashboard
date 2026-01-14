@@ -404,10 +404,17 @@ with tab_optimizer:
 with tab_ranker:
     st.markdown("### 🏆 Asset Universe Ranker")
 
+    # Initialize session state for ranker results
+    if 'ranker_results' not in st.session_state:
+        st.session_state.ranker_results = None
+
     if st.button("🏁 Run Universe Analysis"):
         try:
+            # Get tickers from database
             with engine.conn:
                 tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
+
+            st.info(f"Found {len(tickers)} tickers in database")
 
             if not tickers:
                 st.warning("No tickers found in database. Load data first using main.py")
@@ -416,30 +423,43 @@ with tab_ranker:
                 with st.spinner(f"Analyzing {len(tickers)} assets..."):
                     df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
 
+                    st.info(f"Analysis complete. Got {len(df_ranked)} results")
+
                     if df_ranked.empty:
                         st.warning("No valid results. Check date range and data availability.")
+                        st.session_state.ranker_results = None
                     else:
-                        # Add status
-                        def get_status(apr):
-                            if apr >= RankerThresholds.HIGH_YIELD: return "🟢 High Yield"
-                            if apr >= RankerThresholds.MODERATE_YIELD: return "🟡 Moderate"
-                            return "🔴 Low Yield"
-
-                        df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
-                        st.dataframe(
-                            df_ranked,
-                            use_container_width=True,
-                            hide_index=True,
-                            column_config={
-                                "Avg Net APR": st.column_config.NumberColumn(
-                                    "Avg Net APR",
-                                    format="%.2f%%"
-                                )
-                            }
-                        )
-
-                        # Chart
-                        chart = charts.create_ranking_chart(df_ranked)
-                        st.altair_chart(chart, use_container_width=True)
+                        # Store results in session state
+                        st.session_state.ranker_results = df_ranked
+                        st.success(f"Successfully ranked {len(df_ranked)} assets!")
         except Exception as e:
             st.error(f"Error running ranker: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
+
+    # Display results if they exist
+    if st.session_state.ranker_results is not None:
+        df_ranked = st.session_state.ranker_results
+
+        # Add status
+        def get_status(apr):
+            if apr >= RankerThresholds.HIGH_YIELD: return "🟢 High Yield"
+            if apr >= RankerThresholds.MODERATE_YIELD: return "🟡 Moderate"
+            return "🔴 Low Yield"
+
+        df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
+        st.dataframe(
+            df_ranked,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Avg Net APR": st.column_config.NumberColumn(
+                    "Avg Net APR",
+                    format="%.2f%%"
+                )
+            }
+        )
+
+        # Chart
+        chart = charts.create_ranking_chart(df_ranked)
+        st.altair_chart(chart, use_container_width=True)
