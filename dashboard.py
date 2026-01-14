@@ -421,7 +421,17 @@ with tab_ranker:
                         return "🔴 Low Yield"
                     
                     df_ranked['Status'] = df_ranked['Avg Net APR'].apply(get_status)
-                    st.dataframe(df_ranked, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_ranked,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "Avg Net APR": st.column_config.NumberColumn(
+                                "Avg Net APR",
+                                format="%.2f%%"
+                            )
+                        }
+                    )
                     
                     # Chart
                     chart = charts.create_ranking_chart(df_ranked)

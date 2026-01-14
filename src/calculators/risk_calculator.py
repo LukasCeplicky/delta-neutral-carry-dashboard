@@ -194,13 +194,13 @@ class RiskCalculator:
                     equity_vol = daily_rets.std() * np.sqrt(365)
                     
                     results.append({
-                        "System Lev": f"{lev}x",
-                        "HL Max": leg_lev['hl'].max(),
-                        "IBKR Max": leg_lev['ibkr'].max(),
-                        "CAGR": metrics['CAGR'] * 100,
-                        "Max DD": metrics['MaxDD'] * 100,
-                        "Sharpe": metrics['Sharpe'],
-                        "Eq Vol": equity_vol * 100
+                        "System Lev": f"{lev:.1f}x",
+                        "HL Max": f"{leg_lev['hl'].max():.2f}x",
+                        "IBKR Max": f"{leg_lev['ibkr'].max():.2f}x",
+                        "CAGR": f"{metrics['CAGR'] * 100:.2f}%",
+                        "Max DD": f"{metrics['MaxDD'] * 100:.2f}%",
+                        "Sharpe": f"{metrics['Sharpe']:.2f}",
+                        "Eq Vol": f"{equity_vol * 100:.2f}%"
                     })
                 else:
                     raise ValueError("Metrics failed")
@@ -208,13 +208,13 @@ class RiskCalculator:
             except Exception:
                 # Mark failed scenarios
                 results.append({
-                    "System Lev": f"{lev}x",
-                    "HL Max": np.nan,
-                    "IBKR Max": np.nan,
-                    "CAGR": 0.0,
-                    "Max DD": 100.0,
-                    "Sharpe": 0.0,
-                    "Eq Vol": 0.0
+                    "System Lev": f"{lev:.1f}x",
+                    "HL Max": "LIQUIDATED",
+                    "IBKR Max": "LIQUIDATED",
+                    "CAGR": "0.00%",
+                    "Max DD": "100.00%",
+                    "Sharpe": "0.00",
+                    "Eq Vol": "N/A"
                 })
         
         return pd.DataFrame(results)
