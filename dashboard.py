@@ -408,22 +408,27 @@ with tab_ranker:
     if 'ranker_results' not in st.session_state:
         st.session_state.ranker_results = None
 
-    if st.button("🏁 Run Universe Analysis"):
-        try:
-            # Get tickers from database
-            with engine.conn:
-                tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
+    # Debug: Check database status
+    try:
+        with engine.conn:
+            ticker_count = len([r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")])
+        st.caption(f"📊 Database contains {ticker_count} tickers")
+    except Exception as e:
+        st.error(f"Database error: {e}")
 
-            st.info(f"Found {len(tickers)} tickers in database")
+    if st.button("🏁 Run Universe Analysis", key="run_ranker_btn"):
+        with st.spinner("Running analysis..."):
+            try:
+                # Get tickers from database
+                with engine.conn:
+                    tickers = [r[0] for r in engine.conn.execute("SELECT DISTINCT ticker FROM hourly_data")]
 
-            if not tickers:
-                st.warning("No tickers found in database. Load data first using main.py")
-            else:
-                ranker = AssetRanker(capital, benchmark)
-                with st.spinner(f"Analyzing {len(tickers)} assets..."):
+                if not tickers:
+                    st.warning("No tickers found in database. Load data first using main.py")
+                    st.session_state.ranker_results = None
+                else:
+                    ranker = AssetRanker(capital, benchmark)
                     df_ranked = ranker.run_ranking(tickers, engine, filter_data_by_date, start_date, end_date)
-
-                    st.info(f"Analysis complete. Got {len(df_ranked)} results")
 
                     if df_ranked.empty:
                         st.warning("No valid results. Check date range and data availability.")
@@ -431,11 +436,13 @@ with tab_ranker:
                     else:
                         # Store results in session state
                         st.session_state.ranker_results = df_ranked
-                        st.success(f"Successfully ranked {len(df_ranked)} assets!")
-        except Exception as e:
-            st.error(f"Error running ranker: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
+                        st.success(f"✅ Successfully ranked {len(df_ranked)} assets!")
+                        st.rerun()  # Force rerun to display results
+            except Exception as e:
+                st.error(f"❌ Error running ranker: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
+                st.session_state.ranker_results = None
 
     # Display results if they exist
     if st.session_state.ranker_results is not None:
