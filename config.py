@@ -21,10 +21,11 @@ class ExchangeLimits:
 class StrategyDefaults:
     """Default parameter values for the strategy"""
     CAPITAL = 1_000_000
-    LEVERAGE = 1.0
     HL_SPLIT_PCT = 0.30               # 30% to Hyperliquid
     BENCHMARK_RATE = 0.0364           # 3.64% (Jan 2026 Fed Rate)
+    SAFETY_FACTOR = 0.80              # Use 80% of max safe leverage
     EXECUTION_COST_BPS = 12.0         # Taker fees in basis points
+    REBALANCE_TOLERANCE = 0.10        # ±10% drift before rebalancing
 
 
 # === IBKR INTEREST RATE TIERS ===

@@ -8,9 +8,9 @@ from src.strategy import FundingStrategy
 
 # --- CONFIG ---
 STRAT_CONFIG = {
-    "leverage": 1.0,
-    "hl_split_pct": 0.30,  # Added (required)
-    "benchmark_rate": 0.0364  # Renamed from ibkr_rate
+    "hl_split_pct": 0.30,
+    "benchmark_rate": 0.0364,
+    "safety_factor": 0.80  # Use 80% of max safe leverage
 }
 
 def main():
@@ -39,10 +39,10 @@ def main():
             continue
             
         strat = FundingStrategy(
-            capital=200_000, 
-            leverage=STRAT_CONFIG['leverage'],
-            hl_split_pct=STRAT_CONFIG['hl_split_pct'],  # Added
-            benchmark_rate=STRAT_CONFIG['benchmark_rate']  # Fixed
+            capital=200_000,
+            hl_split_pct=STRAT_CONFIG['hl_split_pct'],
+            benchmark_rate=STRAT_CONFIG['benchmark_rate'],
+            safety_factor=STRAT_CONFIG['safety_factor']
         )
         
         try:
